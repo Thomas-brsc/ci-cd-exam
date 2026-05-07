@@ -2,7 +2,6 @@ import groovy.json.JsonOutput
 
 /*
  * QuickNotes - Pipeline Jenkins CI/CD
- * Remplacer STUDENT_NAME par vos prénom et nom avant le rendu.
  */
 
 def securityGate(String label, String command, boolean blocking) {
@@ -19,6 +18,7 @@ def notifyDiscord(String status) {
   node {
     def buildUrl = env.BUILD_URL ?: 'URL Jenkins locale indisponible'
     def color = status == 'SUCCESS' ? 3066993 : 15158332
+
     def payload = JsonOutput.toJson([
       username: 'Jenkins QuickNotes',
       embeds: [[
@@ -32,14 +32,19 @@ def notifyDiscord(String status) {
         ]
       ]]
     ])
+
     writeFile file: 'discord_payload.json', text: payload
+
     withCredentials([string(credentialsId: 'discord-webhook-quicknotes', variable: 'DISCORD_WEBHOOK_URL')]) {
       sh '''#!/usr/bin/env bash
         set -euo pipefail
+
+        CLEAN_WEBHOOK_URL="$(printf '%s' "$DISCORD_WEBHOOK_URL" | tr -d '\\r\\n ')"
+
         curl -fsS \
           -H 'Content-Type: application/json' \
           --data @discord_payload.json \
-          "$DISCORD_WEBHOOK_URL" >/dev/null
+          "$CLEAN_WEBHOOK_URL" >/dev/null
       '''
     }
   }
@@ -67,8 +72,6 @@ pipeline {
 
   environment {
     STUDENT_NAME = 'Thomas Saint-Pol'
-    NODE_IMAGE = 'node:20-bookworm-slim'
-    NODE_DOCKER_ARGS = '-e HOME=/tmp -e npm_config_cache=/tmp/npm-cache'
     COVERAGE_MIN_LINES = '75'
   }
 
@@ -78,7 +81,9 @@ pipeline {
       steps {
         deleteDir()
         checkout scm
-        stash name: 'source', includes: '**/*,.eslintrc.json,.gitignore,.semgrep.yml,.gitleaks.toml,.dockerignore', excludes: '.git/**,node_modules/**,coverage/**,audit-results/**,screenshots/**'
+        stash name: 'source',
+          includes: '**/*,.eslintrc.json,.gitignore,.semgrep.yml,.gitleaks.toml,.dockerignore',
+          excludes: '.git/**,node_modules/**,coverage/**,audit-results/**,screenshots/**'
       }
     }
 
@@ -96,7 +101,9 @@ pipeline {
         sh 'npm ci --no-audit --no-fund'
       }
       post {
-        always { deleteDir() }
+        always {
+          deleteDir()
+        }
       }
     }
 
@@ -115,7 +122,9 @@ pipeline {
         sh 'npm run lint'
       }
       post {
-        always { deleteDir() }
+        always {
+          deleteDir()
+        }
       }
     }
 
@@ -134,7 +143,9 @@ pipeline {
         sh 'npm test -- --runInBand'
       }
       post {
-        always { deleteDir() }
+        always {
+          deleteDir()
+        }
       }
     }
 
@@ -150,20 +161,10 @@ pipeline {
         deleteDir()
         unstash 'source'
         sh 'npm ci --no-audit --no-fund'
-        sh 'npm run test:coverage -- --runInBand'
+        sh 'npm run test:coverage -- --runInBand --coverageReporters=text --coverageReporters=json-summary'
         sh '''#!/usr/bin/env bash
           set -euo pipefail
-          node - <<'NODE'
-          const fs = require('fs')
-          const threshold = Number(process.env.COVERAGE_MIN_LINES || 75)
-          const summary = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'))
-          const lines = summary.total.lines.pct
-          console.log(`Coverage lignes: ${lines}% / seuil: ${threshold}%`)
-          if (lines < threshold) {
-            console.error(`Coverage insuffisante: ${lines}% < ${threshold}%`)
-            process.exit(1)
-          }
-          NODE
+          node -e "const fs=require('fs'); const threshold=Number(process.env.COVERAGE_MIN_LINES||75); const summary=JSON.parse(fs.readFileSync('coverage/coverage-summary.json','utf8')); const lines=summary.total.lines.pct; console.log('Coverage lignes: '+lines+'% / seuil: '+threshold+'%'); if(lines<threshold){ console.error('Coverage insuffisante: '+lines+'% < '+threshold+'%'); process.exit(1); }"
         '''
       }
       post {
@@ -220,8 +221,18 @@ pipeline {
           securityGate('SAST - Semgrep', '''#!/usr/bin/env sh
             set +e
             mkdir -p audit-results
-            semgrep scan --config .semgrep.yml --json --output audit-results/semgrep.json . >/tmp/semgrep-json.log 2>&1
-            semgrep scan --config .semgrep.yml --error . > audit-results/semgrep.txt 2>&1
+
+            semgrep scan \
+              --config .semgrep.yml \
+              --json \
+              --output audit-results/semgrep.json \
+              . >/tmp/semgrep-json.log 2>&1
+
+            semgrep scan \
+              --config .semgrep.yml \
+              --error \
+              . > audit-results/semgrep.txt 2>&1
+
             status=$?
             cat audit-results/semgrep.txt
             exit $status
@@ -251,6 +262,7 @@ pipeline {
           securityGate('Secrets - Gitleaks', '''#!/usr/bin/env sh
             set +e
             mkdir -p audit-results
+
             gitleaks detect \
               --no-git \
               --source . \
@@ -259,6 +271,7 @@ pipeline {
               --report-format json \
               --report-path audit-results/gitleaks.json \
               > audit-results/gitleaks.txt 2>&1
+
             status=$?
             cat audit-results/gitleaks.txt
             exit $status
@@ -285,21 +298,27 @@ pipeline {
         timeout(time: 10, unit: 'MINUTES') {
           input message: 'Validation manuelle obligatoire : déployer QuickNotes sur Render ?', ok: 'Déployer'
         }
+
         withCredentials([
           string(credentialsId: 'render-deploy-hook-quicknotes', variable: 'RENDER_DEPLOY_HOOK'),
           string(credentialsId: 'render-health-url-quicknotes', variable: 'RENDER_HEALTH_BASE_URL')
         ]) {
           sh '''#!/usr/bin/env sh
             set -eu
+
             curl -fsS -X POST "$RENDER_DEPLOY_HOOK" >/dev/null
+
             for i in $(seq 1 60); do
               code=$(curl -sS -o /tmp/quicknotes-health.txt -w '%{http_code}' "$RENDER_HEALTH_BASE_URL/health" || true)
+
               if [ "$code" = "200" ]; then
                 echo "Healthcheck Render OK: $RENDER_HEALTH_BASE_URL/health"
                 exit 0
               fi
+
               sleep 10
             done
+
             echo "Healthcheck Render KO après déploiement"
             cat /tmp/quicknotes-health.txt || true
             exit 1
@@ -311,10 +330,15 @@ pipeline {
 
   post {
     failure {
-      script { notifyDiscord('FAILURE') }
+      script {
+        notifyDiscord('FAILURE')
+      }
     }
+
     success {
-      script { notifyDiscord('SUCCESS') }
+      script {
+        notifyDiscord('SUCCESS')
+      }
     }
   }
 }
