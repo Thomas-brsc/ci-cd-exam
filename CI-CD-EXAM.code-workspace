@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../../Downloads/Annexes-CICD/projet-etudiant/src"
+		},
+		{
+			"path": "../../Downloads/Annexes-CICD/projet-etudiant/test"
+		}
+	],
+	"settings": {}
+}

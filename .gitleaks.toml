@@ -1,0 +1,8 @@
+title = "QuickNotes custom gitleaks config"
+
+[[rules]]
+id = "quicknotes-admin-token"
+description = "Token administrateur QuickNotes codé en dur"
+regex = '''(qn_admin_[0-9]{4}_[A-Za-z0-9_!@#\$%\^&\*\-+=]+)'''
+secretGroup = 1
+tags = ["quicknotes", "admin-token", "secret"]

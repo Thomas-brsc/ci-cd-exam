@@ -1,2 +1,6 @@
-CONTEXT.md
-motdepassejenkins.txt
+node_modules/
+coverage/
+.env
+.DS_Store
+*.log
+exports/

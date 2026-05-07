@@ -1,0 +1,82 @@
+rules:
+  - id: quicknotes.reflected-xss-search
+    message: "Entrée utilisateur rendue dans du HTML sans échappement: risque de XSS reflétée."
+    languages: [javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-79"
+      owasp: "A03:2021-Injection"
+    patterns:
+      - pattern-inside: |
+          router.get('/api/search', (req, res) => {
+            ...
+          })
+      - pattern: res.send($HTML)
+
+  - id: quicknotes.path-traversal-export
+    message: "Lecture de fichier construite depuis une query string: risque de path traversal."
+    languages: [javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      owasp: "A01:2021-Broken Access Control"
+    patterns:
+      - pattern-inside: |
+          router.get('/api/export', (req, res) => {
+            ...
+          })
+      - pattern: fs.readFileSync($PATH, ...)
+
+  - id: quicknotes.hardcoded-admin-token
+    message: "Secret administrateur codé en dur dans le dépôt."
+    languages: [javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-798"
+      owasp: "A07:2021-Identification and Authentication Failures"
+    patterns:
+      - pattern: |
+          const config = {
+            ...
+            ADMIN_TOKEN: $SECRET,
+            ...
+          }
+      - metavariable-regex:
+          metavariable: $SECRET
+          regex: "^['\"].+['\"]$"
+
+  - id: quicknotes.unauthenticated-delete-note
+    message: "Route DELETE destructive sans contrôle d'authentification visible."
+    languages: [javascript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-862"
+      owasp: "A01:2021-Broken Access Control"
+    pattern: |
+      router.delete($ROUTE, (req, res) => {
+        ...
+        store.deleteNote(...)
+        ...
+      })
+
+  - id: quicknotes.static-header-token-auth
+    message: "Authentification admin par token statique partagé dans un header."
+    languages: [javascript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-287"
+      owasp: "A07:2021-Identification and Authentication Failures"
+    patterns:
+      - pattern-inside: |
+          router.post('/api/admin/purge', (req, res) => {
+            ...
+          })
+      - pattern: |
+          if ($TOKEN !== config.ADMIN_TOKEN) {
+            ...
+          }

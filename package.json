@@ -1,0 +1,25 @@
+{
+  "name": "quicknotes-api",
+  "version": "1.0.0",
+  "description": "API de prise de notes collaboratives — QuickNotes SaaS",
+  "license": "UNLICENSED",
+  "private": true,
+  "author": "QuickNotes Team",
+  "type": "commonjs",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "lint": "eslint src test",
+    "test": "jest",
+    "test:coverage": "jest --coverage"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "lodash": "4.17.4"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  }
+}
